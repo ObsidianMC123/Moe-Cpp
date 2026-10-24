@@ -8,14 +8,16 @@
 
 - Native editor image wallpapers and looping MP4 wallpapers (FFmpeg).
 - Optional **Wallpaper across workspace** for the code editor and surrounding panels, including Project/Class and output areas.
-- Distinctive green **Moe C++** Windows icon, Welcome logo, app title, and version metadata (v0.2.0).
+- Distinctive green **Moe C++** Windows icon, Welcome logo, app title, and version metadata (v0.3.0).
 - Dark UI improvements, video orientation corrections, and reduced repaint flicker when editing, switching tabs, and opening projects.
 - Wallpaper settings for opacity, dimming, blur and frame rate, accessible from **Tools → Wallpaper Settings**.
+- Automatic **Discord Rich Presence** with the Moe C++ application identity, logo, current file name, C/C++ language, project name, and elapsed session time. It uses Discord Desktop's local IPC; choose **Tools > Discord Rich Presence** to turn it off, or **Tools > Share file and project names on Discord** to hide file/project identifiers. Full local paths are not transmitted.
+- **VS Code Dark+** editor colors when wallpaper is switched off, without changing the existing dark side panels.
 - C/C++ editing, projects, compilation and debugging inherited from Dev-C++.
 
 ## Download and run
 
-Go to [Releases](../../releases) and download the **v0.2.0 portable** ZIP. Extract it fully, then run `Start Moe C++.cmd`. The ZIP includes the TDM-GCC toolchain. On first launch, configure your own image or video from **Tools → Wallpaper Settings**.
+Go to [Releases](../../releases) and download the **v0.3.0 portable** ZIP. Extract it fully, then run `Start Moe C++.cmd`. The ZIP includes the TDM-GCC toolchain. On first launch, configure your own image or video from **Tools → Wallpaper Settings**.
 
 For MP4 playback, install FFmpeg and make sure `ffmpeg.exe` is available on `PATH`. No personal wallpaper video is bundled.
 
