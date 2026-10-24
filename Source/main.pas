@@ -39,7 +39,7 @@ uses
   Vcl.Styles.Utils.ComCtrls, //Style SysTreeView32, SysListView32
   Vcl.Styles.Utils.ScreenTips, //Style the tooltips_class32 class
   Vcl.Styles.Utils.SysControls,
-  Vcl.Styles.Utils.SysStyleHook, Vcl.VirtualImage
+  Vcl.Styles.Utils.SysStyleHook, Vcl.VirtualImage, MoeDiscordRPC
   ;
 
 type
@@ -904,6 +904,11 @@ type
     fOldCompilerToolbarIndex: integer;
     fAutoSaveTimer: TTimer;
     fWallpaperMenu: TMenuItem;
+    fDiscord: TMoeDiscordRPC;
+    fDiscordTimer: TTimer;
+    fDiscordMenu, fDiscordIdMenu, fDiscordShareMenu: TMenuItem;
+    fDiscordEnabled, fDiscordShare: Boolean;
+    fDiscordClientId: string;
     fProject: TProject;
     fDebugger: TDebugger;
     fCompiler: TCompiler;
@@ -912,6 +917,12 @@ type
     fLogOutputRawData: TStringList;
     fCriticalSection: TCriticalSection; // protects fFilesToOpen
     fFilesToOpen: TStringList; // files to open on show
+    procedure DiscordTick(Sender: TObject);
+    procedure DiscordToggleClick(Sender: TObject);
+    procedure DiscordIdClick(Sender: TObject);
+    procedure DiscordShareClick(Sender: TObject);
+    procedure SaveDiscordSettings;
+    procedure RefreshEditorPalette;
     procedure WallpaperSettingsClick(Sender: TObject);
     procedure WallpaperPaint(Sender: TObject);
     procedure WMEraseWallpaper(var Msg: TWMEraseBkgnd); message WM_ERASEBKGND;
@@ -1125,6 +1136,8 @@ end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
+  FreeAndNil(fDiscordTimer);
+  FreeAndNil(fDiscord);
   EditorWallpaper.RemoveSurfaces;
   EditorWallpaper.SetMainHost(nil);
   EditorWallpaper.UnregisterEditor(Self);
@@ -6259,6 +6272,38 @@ begin
   fWallpaperMenu.OnClick := WallpaperSettingsClick;
   ToolsMenu.Add(fWallpaperMenu);
 
+  // Discord RPC is optional and uses only the local Discord desktop IPC pipe.
+  // The user chooses an Application ID and whether to share file/project names.
+  with TIniFile.Create(IncludeTrailingPathDelimiter(devDirs.Config) + 'MoeDiscord.ini') do
+  try
+    fDiscordClientId := ReadString('Discord', 'ApplicationId', '');
+    fDiscordEnabled := ReadBool('Discord', 'Enabled', False);
+    fDiscordShare := ReadBool('Discord', 'ShareFileProject', True);
+  finally
+    Free;
+  end;
+  fDiscord := TMoeDiscordRPC.Create;
+  fDiscord.Configure(fDiscordEnabled, fDiscordClientId);
+  fDiscordMenu := TMenuItem.Create(Self);
+  fDiscordMenu.Caption := 'Discord Rich Presence';
+  fDiscordMenu.Checked := fDiscordEnabled;
+  fDiscordMenu.OnClick := DiscordToggleClick;
+  ToolsMenu.Add(fDiscordMenu);
+  fDiscordIdMenu := TMenuItem.Create(Self);
+  fDiscordIdMenu.Caption := 'Discord Application ID...';
+  fDiscordIdMenu.OnClick := DiscordIdClick;
+  ToolsMenu.Add(fDiscordIdMenu);
+  fDiscordShareMenu := TMenuItem.Create(Self);
+  fDiscordShareMenu.Caption := 'Share file and project names on Discord';
+  fDiscordShareMenu.Checked := fDiscordShare;
+  fDiscordShareMenu.OnClick := DiscordShareClick;
+  ToolsMenu.Add(fDiscordShareMenu);
+  fDiscordTimer := TTimer.Create(Self);
+  fDiscordTimer.Interval := 5000;
+  fDiscordTimer.OnTimer := DiscordTick;
+  fDiscordTimer.Enabled := True;
+  DiscordTick(nil);
+
   // Don't create the autosave timer when we don't need it
   if devEditor.EnableAutoSave then begin
     AutoSaveTimer := TTimer.Create(nil);
@@ -7245,6 +7290,124 @@ begin
     EditorWallpaper.DrawSurface(Canvas, ClientRect, Self);
 end;
 
+procedure TMainForm.RefreshEditorPalette;
+var
+  I: Integer;
+  E: TEditor;
+begin
+  if not Assigned(fEditorList) then Exit;
+  for I := 0 to fEditorList.PageCount - 1 do
+  begin
+    E := fEditorList[I];
+    if Assigned(E) and Assigned(E.Text) then
+    begin
+      devEditor.AssignEditor(E.Text, E.FileName);
+      E.Text.Invalidate;
+    end;
+  end;
+end;
+
+procedure TMainForm.SaveDiscordSettings;
+var
+  Ini: TIniFile;
+begin
+  ForceDirectories(devDirs.Config);
+  Ini := TIniFile.Create(IncludeTrailingPathDelimiter(devDirs.Config) + 'MoeDiscord.ini');
+  try
+    Ini.WriteString('Discord', 'ApplicationId', fDiscordClientId);
+    Ini.WriteBool('Discord', 'Enabled', fDiscordEnabled);
+    Ini.WriteBool('Discord', 'ShareFileProject', fDiscordShare);
+  finally
+    Ini.Free;
+  end;
+  if Assigned(fDiscord) then
+    fDiscord.Configure(fDiscordEnabled, fDiscordClientId);
+end;
+
+procedure TMainForm.DiscordIdClick(Sender: TObject);
+var
+  Id: string;
+  C: Char;
+begin
+  Id := fDiscordClientId;
+  if not InputQuery('Moe C++ Discord Rich Presence',
+    'Paste the Application ID from discord.com/developers/applications:', Id) then Exit;
+  Id := Trim(Id);
+  if (Length(Id) < 15) or (Length(Id) > 22) then
+  begin
+    MessageDlg('Expected a 15-22 digit Discord Application ID.', mtWarning, [mbOK], 0);
+    Exit;
+  end;
+  for C in Id do
+    if not (C in ['0'..'9']) then
+    begin
+      MessageDlg('Application ID must contain digits only.', mtWarning, [mbOK], 0);
+      Exit;
+    end;
+  fDiscordClientId := Id;
+  SaveDiscordSettings;
+end;
+
+procedure TMainForm.DiscordToggleClick(Sender: TObject);
+begin
+  if not fDiscordEnabled and (fDiscordClientId = '') then
+  begin
+    DiscordIdClick(Sender);
+    if fDiscordClientId = '' then Exit;
+  end;
+  fDiscordEnabled := not fDiscordEnabled;
+  fDiscordMenu.Checked := fDiscordEnabled;
+  SaveDiscordSettings;
+  DiscordTick(nil);
+end;
+
+procedure TMainForm.DiscordShareClick(Sender: TObject);
+begin
+  fDiscordShare := not fDiscordShare;
+  fDiscordShareMenu.Checked := fDiscordShare;
+  SaveDiscordSettings;
+  DiscordTick(nil);
+end;
+
+procedure TMainForm.DiscordTick(Sender: TObject);
+var
+  E: TEditor;
+  Details, State, Name, Ext, LanguageName: string;
+begin
+  if not Assigned(fDiscord) or not Assigned(fEditorList) then Exit;
+  Details := 'Browsing Moe C++';
+  State := 'No project open';
+  E := fEditorList.GetEditor;
+  if Assigned(E) then
+  begin
+    Ext := LowerCase(ExtractFileExt(E.FileName));
+    if Ext = '.c' then LanguageName := 'C'
+    else if (Ext = '.cpp') or (Ext = '.cc') or (Ext = '.cxx') then LanguageName := 'C++'
+    else if (Ext = '.h') or (Ext = '.hpp') or (Ext = '.hxx') then LanguageName := 'C/C++ header'
+    else LanguageName := 'Code';
+    if fDiscordShare then
+      Details := 'Editing ' + ExtractFileName(E.FileName) + ' (' + LanguageName + ')'
+    else
+      Details := 'Editing ' + LanguageName;
+  end;
+  if Assigned(fProject) then
+  begin
+    if fDiscordShare then
+    begin
+      Name := fProject.Name;
+      if Name = '' then Name := ChangeFileExt(ExtractFileName(fProject.FileName), '');
+      State := 'Project: ' + Name;
+    end
+    else
+      State := 'Working on a project';
+  end;
+  if Assigned(fCompiler) and fCompiler.Compiling then
+    Details := 'Compiling in Moe C++'
+  else if Assigned(fDebugger) and fDebugger.Executing then
+    Details := 'Debugging in Moe C++';
+  fDiscord.UpdateActivity(Copy(Details, 1, 120), Copy(State, 1, 120));
+end;
+
 procedure TMainForm.WallpaperSettingsClick(Sender: TObject);
 begin
   try
@@ -7252,6 +7415,7 @@ begin
     begin
       LoadStyle;
       LoadThemeStyle;
+      RefreshEditorPalette;
       Invalidate;
       ProjectView.Invalidate;
       DebugView.Invalidate;

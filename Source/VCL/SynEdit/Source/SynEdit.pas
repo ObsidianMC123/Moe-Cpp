@@ -2758,6 +2758,14 @@ var
   var
     iAttri: TSynHighlighterAttributes;
   begin
+    if EditorWallpaper.Kind = wkOff then
+    begin
+      if (ActiveLineColor <> clNone) and bCurrentLine then
+        Result := RGB(42, 45, 46)
+      else
+        Result := RGB(30, 30, 30);
+      Exit;
+    end;
     if (ActiveLineColor <> clNone) and (bCurrentLine) then
       Result := ActiveLineColor
     else begin
@@ -2869,11 +2877,19 @@ var
         end
         else
         begin
-          SetBackColor(colBG);
-          Canvas.Brush.Color := colBG;
+          if (EditorWallpaper.Kind = wkOff) and not bSpecialLine then
+          begin
+            SetBackColor(colEditorBG);
+            Canvas.Brush.Color := colEditorBG;
+          end
+          else
+          begin
+            SetBackColor(colBG);
+            Canvas.Brush.Color := colBG;
+          end;
         end;
         // Pure black default text would disappear against a dark wallpaper.
-        if EditorWallpaper.Active then
+        if EditorWallpaper.Active or (EditorWallpaper.Kind = wkOff) then
         begin
           TextRGB := ColorToRGB(colFG);
           R := GetRValue(TextRGB);

@@ -23,7 +23,7 @@ interface
 
 uses
   Dialogs, Windows, Classes, Graphics, SynEdit, editor, CFGData, IniFiles, ProjectTypes, Math, ShellAPI, ShlObj,
-  ComCtrls, System.UITypes, Vcl.Themes, SynEditTextBuffer, System.SysUtils;
+  ComCtrls, System.UITypes, Vcl.Themes, SynEditTextBuffer, System.SysUtils, DevWallpaper;
 
 const
   BoolValYesNo: array[boolean] of String = ('No', 'Yes');
@@ -2604,6 +2604,19 @@ begin
         Options := Options + [eoTrimTrailingSpaces];
       if fShowLigatures then
         Options := Options + [eoShowLigatures];
+
+      // VS Code Dark+ editor only when wallpaper is Off. The surrounding
+      // Project/Class/toolbar panels keep their existing theme and colors.
+      if EditorWallpaper.Kind = wkOff then
+      begin
+        Color := RGB(30, 30, 30);
+        Font.Color := RGB(212, 212, 212);
+        Gutter.Color := RGB(37, 37, 38);
+        Gutter.Font.Color := RGB(133, 133, 133);
+        ActiveLineColor := RGB(42, 45, 46);
+        SelectedColor.Background := RGB(38, 79, 120);
+        SelectedColor.Foreground := clWhite;
+      end;
     finally
       EndUpdate;
     end;
