@@ -6276,8 +6276,10 @@ begin
   // The user chooses an Application ID and whether to share file/project names.
   with TIniFile.Create(IncludeTrailingPathDelimiter(devDirs.Config) + 'MoeDiscord.ini') do
   try
-    fDiscordClientId := ReadString('Discord', 'ApplicationId', '');
-    fDiscordEnabled := ReadBool('Discord', 'Enabled', False);
+    // Show Moe C++ automatically in the signed-in Discord desktop client.
+    // An explicit Enabled=False in the user's INI always takes precedence.
+    fDiscordClientId := ReadString('Discord', 'ApplicationId', '1502925719104389200');
+    fDiscordEnabled := ReadBool('Discord', 'Enabled', True);
     fDiscordShare := ReadBool('Discord', 'ShareFileProject', True);
   finally
     Free;

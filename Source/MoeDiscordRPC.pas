@@ -111,7 +111,7 @@ end;
 
 function JsonActivity(const Details, State: string; Started: Int64): string;
 var
-  Root, Args, Activity, Timestamps: TJSONObject;
+  Root, Args, Activity, Timestamps, Assets: TJSONObject;
   Nonce: TGUID;
 begin
   Root := TJSONObject.Create;
@@ -127,6 +127,11 @@ begin
     Activity.AddPair('type', TJSONNumber.Create(0));
     Activity.AddPair('details', Copy(Details, 1, 120));
     Activity.AddPair('state', Copy(State, 1, 120));
+    Assets := TJSONObject.Create;
+    Activity.AddPair('assets', Assets);
+    // Exact Art Asset key retrieved from this Discord Application's public assets.
+    Assets.AddPair('large_image', 'chatgpt_image_oct_24_2026_04_15_17_pm');
+    Assets.AddPair('large_text', 'Moe C++ IDE');
     Timestamps := TJSONObject.Create;
     Activity.AddPair('timestamps', Timestamps);
     Timestamps.AddPair('start', TJSONNumber.Create(Started));
@@ -138,6 +143,7 @@ end;
 
 constructor TMoeDiscordRPC.Create;
 begin
+  // Delphi starts the worker in AfterConstruction after fields are ready.
   inherited Create(False);
   FreeOnTerminate := False;
   FLock := TCriticalSection.Create;
@@ -160,6 +166,7 @@ begin
   try
     FEnabled := AEnabled and (Trim(AClientId) <> '');
     FClientId := Trim(AClientId);
+    RPCTrace('RPC configured enabled=' + BoolToStr(FEnabled, True));
   finally
     FLock.Leave;
   end;
@@ -204,6 +211,7 @@ begin
   Previous := '';
   NextAttempt := 0;
   LastPublish := 0;
+  RPCTrace('RPC worker started');
   try
     while not Terminated do
     begin
