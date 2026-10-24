@@ -7270,7 +7270,7 @@ begin
     devData.Style := 4; // Windows10 Dark, never Purple
   if not TStyleManager.TrySetStyle(cDelphiStyle[devData.Style]) then
     TStyleManager.TrySetStyle('Carbon');
-  LabelNumVersion.Font.Color := clRed;
+  LabelNumVersion.Font.Color := clLime;
   case devData.Style of
     2, 3, 4, 5, 6: ImageEmbarcadero.ImageIndex := 1;
   else

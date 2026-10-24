@@ -8,13 +8,14 @@
 
 - Native editor image wallpapers and looping MP4 wallpapers (FFmpeg).
 - Optional **Wallpaper across workspace** for the code editor and surrounding panels, including Project/Class and output areas.
+- Distinctive green **Moe C++** Windows icon, Welcome logo, app title, and version metadata (v0.2.0).
 - Dark UI improvements, video orientation corrections, and reduced repaint flicker when editing, switching tabs, and opening projects.
 - Wallpaper settings for opacity, dimming, blur and frame rate, accessible from **Tools → Wallpaper Settings**.
 - C/C++ editing, projects, compilation and debugging inherited from Dev-C++.
 
 ## Download and run
 
-Go to [Releases](../../releases) and download the **portable** ZIP. Extract it fully, then run `Start Dev-C++ v2.cmd`. The ZIP includes the TDM-GCC toolchain. On first launch, configure your own image or video from **Tools → Wallpaper Settings**.
+Go to [Releases](../../releases) and download the **v0.2.0 portable** ZIP. Extract it fully, then run `Start Moe C++.cmd`. The ZIP includes the TDM-GCC toolchain. On first launch, configure your own image or video from **Tools → Wallpaper Settings**.
 
 For MP4 playback, install FFmpeg and make sure `ffmpeg.exe` is available on `PATH`. No personal wallpaper video is bundled.
 

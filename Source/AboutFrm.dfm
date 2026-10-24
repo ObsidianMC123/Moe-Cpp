@@ -3,7 +3,7 @@ object AboutForm: TAboutForm
   Top = 509
   BorderIcons = [biSystemMenu]
   BorderStyle = bsDialog
-  Caption = 'About Embarcadero Dev-C++ :-)'
+  Caption = 'About Moe C++ (based on Dev-C++)'
   ClientHeight = 642
   ClientWidth = 414
   Color = clBtnFace

@@ -195,7 +195,7 @@ begin
 
   // Create main window
   Application.Initialize;
-  Application.Title := 'Embarcadero Dev C++';
+  Application.Title := 'Moe C++';
   Application.CreateForm(TMainForm, MainForm);
   Application.Run;
 end.
