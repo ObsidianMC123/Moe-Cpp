@@ -903,6 +903,7 @@ type
     fParseStartTime: Cardinal; // TODO: move to CppParser?
     fOldCompilerToolbarIndex: integer;
     fAutoSaveTimer: TTimer;
+    fWallpaperMenu: TMenuItem;
     fProject: TProject;
     fDebugger: TDebugger;
     fCompiler: TCompiler;
@@ -911,6 +912,9 @@ type
     fLogOutputRawData: TStringList;
     fCriticalSection: TCriticalSection; // protects fFilesToOpen
     fFilesToOpen: TStringList; // files to open on show
+    procedure WallpaperSettingsClick(Sender: TObject);
+    procedure WallpaperPaint(Sender: TObject);
+    procedure WMEraseWallpaper(var Msg: TWMEraseBkgnd); message WM_ERASEBKGND;
     function ParseToolParams(s: String): String;
     procedure BuildBookMarkMenus;
     procedure SetHints;
@@ -1002,7 +1006,7 @@ uses
   ProfileAnalysisFrm, FilePropertiesFrm, AddToDoFrm, ViewToDoFrm,
   ImportMSVCFrm, ImportCBFrm, CPUFrm, FileAssocs, TipOfTheDayFrm,
   WindowListFrm, RemoveUnitFrm, ParamsFrm, ProcessListFrm, SynEditHighlighter,
-  ConsoleAppHostFrm;
+  ConsoleAppHostFrm, DevWallpaper;
 
 {$R *.dfm}
 
@@ -1115,16 +1119,19 @@ begin
 
   //  --  --  --  --  --  --  --  --  --  --  --  --  --
   //      This is a cheat.    Also don't hard-code 'Windows10'.
-  //  --  --  --  --  --  --  --  --  --  --  --  --  --
-      MainForm.Visible := false;
-      TStyleManager.TrySetStyle('Windows10');
-  //  --  --  --  --  --  --  --  --  --  --  --  --  --
-
+  // Delphi 13 has no Windows10 BlackPearl; keep the active style on exit.
   Action := caFree;
 end;
 
 procedure TMainForm.FormDestroy(Sender: TObject);
 begin
+  EditorWallpaper.RemoveSurfaces;
+  EditorWallpaper.SetMainHost(nil);
+  EditorWallpaper.UnregisterEditor(Self);
+  EditorWallpaper.UnregisterEditor(EditorPageControlLeft);
+  EditorWallpaper.UnregisterEditor(EditorPageControlRight);
+  EditorWallpaper.UnregisterEditor(ProjectView);
+  EditorWallpaper.UnregisterEditor(DebugView);
   FreeAndNil(fFilesToOpen);
   FreeAndNil(fCriticalSection);
   FreeAndNil(fLogOutputRawData);
@@ -6059,6 +6066,7 @@ end;
 
 procedure TMainForm.FormResize(Sender: TObject);
 begin
+  if EditorWallpaper.WholeApp then Invalidate;
   ResizeWelcomeComponent;
 end;
 
@@ -6171,6 +6179,38 @@ end;
 procedure TMainForm.FormCreate(Sender: TObject);
 
 begin
+  Color := clBlack;
+  DoubleBuffered := True;
+  PageControlPanel.Color := clBlack;
+  PageControlPanel.ParentBackground := False;
+  PageControlPanel.DoubleBuffered := True;
+  EditorPageControlLeft.DoubleBuffered := True;
+  EditorPageControlRight.DoubleBuffered := True;
+  LeftPageControl.DoubleBuffered := True;
+  MessageControl.DoubleBuffered := True;
+  ProjectView.Color := clBlack;
+  DebugView.Color := clBlack;
+  ProjectView.DoubleBuffered := True;
+  DebugView.DoubleBuffered := True;
+  EditorWallpaper.SetMainHost(Self);
+  EditorWallpaper.RegisterEditor(Self);
+  EditorWallpaper.RegisterEditor(EditorPageControlLeft);
+  EditorWallpaper.RegisterEditor(EditorPageControlRight);
+  EditorWallpaper.RegisterEditor(ProjectView);
+  EditorWallpaper.RegisterEditor(DebugView);
+  EditorWallpaper.AddSurface(ProjectView);
+  EditorWallpaper.AddSurface(DebugView);
+  EditorWallpaper.AddSurface(EditorPageControlLeft);
+  EditorWallpaper.AddSurface(EditorPageControlRight);
+  EditorWallpaper.AddSurface(LeftPageControl);
+  EditorWallpaper.AddSurface(MessageControl);
+  EditorWallpaper.AddSurface(CompilerOutput);
+  EditorWallpaper.AddSurface(ResourceOutput);
+  EditorWallpaper.AddSurface(FindOutput);
+  EditorWallpaper.AddSurface(LogOutput);
+  EditorWallpaper.AddSurface(DebugOutput);
+  OnPaint := WallpaperPaint;
+  EditorWallpaper.LoadSettings;
   fFirstShow := true;
 
   // Backup PATH variable
@@ -6213,6 +6253,11 @@ begin
     ToolClick := ToolItemClick;
     BuildMenu;
   end;
+
+  fWallpaperMenu := TMenuItem.Create(Self);
+  fWallpaperMenu.Caption := 'Wallpaper Settings...';
+  fWallpaperMenu.OnClick := WallpaperSettingsClick;
+  ToolsMenu.Add(fWallpaperMenu);
 
   // Don't create the autosave timer when we don't need it
   if devEditor.EnableAutoSave then begin
@@ -7172,9 +7217,59 @@ begin
   LocalFree(Cardinal(ParameterList));
 end;
 
+procedure TMainForm.WMEraseWallpaper(var Msg: TWMEraseBkgnd);
+var
+  B: TCanvas;
+  R: TRect;
+begin
+  R := ClientRect;
+  if EditorWallpaper.WholeApp and EditorWallpaper.Active then
+  begin
+    B := TCanvas.Create;
+    try
+      B.Handle := Msg.DC;
+      EditorWallpaper.DrawSurface(B, R, Self);
+      B.Handle := 0;
+    finally
+      B.Free;
+    end;
+  end
+  else
+    Windows.FillRect(Msg.DC, R, GetStockObject(BLACK_BRUSH));
+  Msg.Result := 1;
+end;
+
+procedure TMainForm.WallpaperPaint(Sender: TObject);
+begin
+  if EditorWallpaper.WholeApp and EditorWallpaper.Active then
+    EditorWallpaper.DrawSurface(Canvas, ClientRect, Self);
+end;
+
+procedure TMainForm.WallpaperSettingsClick(Sender: TObject);
+begin
+  try
+    if ShowEditorWallpaperSettings(Self) then
+    begin
+      LoadStyle;
+      LoadThemeStyle;
+      Invalidate;
+      ProjectView.Invalidate;
+      DebugView.Invalidate;
+      EditorPageControlLeft.Invalidate;
+      EditorPageControlRight.Invalidate;
+    end;
+  except
+    on E: Exception do
+      MessageDlg('Wallpaper settings: ' + E.Message, mtError, [mbOK], 0);
+  end;
+end;
+
 procedure TMainForm.LoadStyle;
 begin
-  TStyleManager.TrySetStyle(cDelphiStyle[devData.Style]);
+  if EditorWallpaper.DarkUI then
+    devData.Style := 4; // Windows10 Dark, never Purple
+  if not TStyleManager.TrySetStyle(cDelphiStyle[devData.Style]) then
+    TStyleManager.TrySetStyle('Carbon');
   LabelNumVersion.Font.Color := clRed;
   case devData.Style of
     2, 3, 4, 5, 6: ImageEmbarcadero.ImageIndex := 1;
@@ -7400,10 +7495,20 @@ begin
     else
       PageControl.Canvas.Brush.Color := StyleServices.GetStyleColor(scGenericBackground);
 
-    PageControl.Canvas.FillRect(Rect);
-    PageControl.Canvas.Font.Color := StyleServices.GetStyleFontColor(sfButtonTextNormal);
+    if EditorWallpaper.WholeApp and EditorWallpaper.Active then
+    begin
+      EditorWallpaper.DrawSurface(PageControl.Canvas, Rect, PageControl);
+      PageControl.Canvas.Brush.Style := bsClear;
+      PageControl.Canvas.Font.Color := clWhite;
+    end
+    else
+    begin
+      PageControl.Canvas.FillRect(Rect);
+      PageControl.Canvas.Font.Color := StyleServices.GetStyleFontColor(sfButtonTextNormal);
+    end;
     PageControl.Canvas.TextOut(TabCaption.X, TabCaption.Y,
             PageControl.Pages[TabIndex].Caption);
+    PageControl.Canvas.Brush.Style := bsSolid;
 
     PageControl.Canvas.Pen.Color := StyleServices.GetStyleColor(scGenericBackground);
     PageControl.Canvas.Pen.Width := 1;

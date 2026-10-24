@@ -1081,7 +1081,8 @@ uses
   SynEditWordWrap,
   SynEditStrConst,
   SynEditDataObject,
-  SynEditDragDrop;
+  SynEditDragDrop,
+  DevWallpaper;
 
 function CeilOfIntDiv(Dividend: Cardinal; Divisor: Word): Word;
 Var
@@ -1248,6 +1249,7 @@ end;
 constructor TCustomSynEdit.Create(AOwner: TComponent);
 begin
   inherited Create(AOwner);
+  EditorWallpaper.RegisterEditor(Self);
   fLines := TSynEditStringList.Create(ExpandAtWideGlyphs);
   fOrigLines := fLines;
   with TSynEditStringList(fLines) do
@@ -1267,7 +1269,7 @@ begin
   fRedoList.OnAddedUndo := UndoRedoAdded;
   fOrigRedoList := fRedoList;
 
-  DoubleBuffered := False;
+  DoubleBuffered := True; // atomic background + glyph painting prevents typing flicker
   fActiveLineColor := clNone;
   fSelectedColor := TSynSelectedColor.Create;
   fSelectedColor.OnChange := SelectedColorsChanged;
@@ -1409,6 +1411,7 @@ end;
 
 destructor TCustomSynEdit.Destroy;
 begin
+  EditorWallpaper.UnregisterEditor(Self);
   Highlighter := nil;
   if (fChainedEditor <> nil) or (fLines <> fOrigLines) then
     RemoveLinesPointer;
@@ -2338,6 +2341,8 @@ begin
     begin
       rcDraw := rcClip;
       rcDraw.Left := Max(rcDraw.Left, fGutterWidth);
+      // Wallpaper is native background: draw before any glyphs or selections.
+      EditorWallpaper.DrawSurface(Canvas, rcDraw, Self);
       PaintTextLines(rcDraw, nL1, nL2, nC1, nC2);
     end;
     PluginsAfterPaint(Canvas, rcClip, nL1, nL2);
@@ -2723,7 +2728,7 @@ var
   vSelStart: TDisplayCoord; // start of selected area
   vSelEnd: TDisplayCoord; // end of selected area
     // info about normal and selected text and background colors
-  bSpecialLine, bLineSelected, bCurrentLine: Boolean;
+  bSpecialLine, bLineSelected, bCurrentLine, bDrawingSelected: Boolean;
   colFG, colBG: TColor;
   colSelFG, colSelBG: TColor;
     // info about selection of the current line
@@ -2825,19 +2830,66 @@ var
     end;
   end;
 
-  procedure SetDrawingColors(Selected: Boolean);
+  function OpaqueTokenBackground: Boolean;
   begin
+    // Text and tabs never get an implicit Windows/VCL background in wallpaper
+    // mode. Selection / special lines are painted explicitly and atomically.
+    Result := not EditorWallpaper.Active or bDrawingSelected or bSpecialLine;
+  end;
+
+  procedure SetDrawingColors(Selected: Boolean);
+  var
+    TextRGB: COLORREF;
+    R, G, B: Integer;
+  begin
+    bDrawingSelected := Selected;
     with fTextDrawer do
       if Selected then
       begin
-        SetBackColor(colSelBG);
-        SetForeColor(colSelFG);
-        Canvas.Brush.Color := colSelBG;
+        if EditorWallpaper.Active then
+        begin
+          // Dark, high-contrast selection; avoid white flashing blocks.
+          SetBackColor($00383838);
+          SetForeColor(clWhite);
+          Canvas.Brush.Color := $00383838;
+        end
+        else
+        begin
+          SetBackColor(colSelBG);
+          SetForeColor(colSelFG);
+          Canvas.Brush.Color := colSelBG;
+        end;
       end
       else begin
-        SetBackColor(colBG);
-        SetForeColor(colFG);
-        Canvas.Brush.Color := colBG;
+        if EditorWallpaper.Active and bSpecialLine then
+        begin
+          // Debug/error line highlighters can supply opaque white backgrounds.
+          SetBackColor($00272727);
+          Canvas.Brush.Color := $00272727;
+        end
+        else
+        begin
+          SetBackColor(colBG);
+          Canvas.Brush.Color := colBG;
+        end;
+        // Pure black default text would disappear against a dark wallpaper.
+        if EditorWallpaper.Active then
+        begin
+          TextRGB := ColorToRGB(colFG);
+          R := GetRValue(TextRGB);
+          G := GetGValue(TextRGB);
+          B := GetBValue(TextRGB);
+          if TextRGB = 0 then
+            SetForeColor($00E8E8E8)
+          else if (R * 299 + G * 587 + B * 114) div 1000 < 90 then
+            // Keep the syntax hue, but ensure dark blues remain readable.
+            SetForeColor(RGB(Min(255, R + 110), Min(255, G + 110),
+              Min(255, B + 95)))
+          else
+            SetForeColor(colFG);
+        end
+        else
+          SetForeColor(colFG);
       end;
   end;
 
@@ -2861,9 +2913,11 @@ var
     i, TabStart, TabLen, CountOfAvgGlyphs, VisibleGlyphPart, FillerCount,
     NonFillerPos: Integer;
     rcTab: TRect;
-  const
-    ETOOptions = [tooOpaque, tooClipped];
+    ETOOptions: TTextOutOptions;
   begin
+    ETOOptions := [tooClipped];
+    if not EditorWallpaper.Active then
+      Include(ETOOptions, tooOpaque);
     sTabbedToken := Token;
     DoTabPainting := False;
 
@@ -2929,6 +2983,14 @@ var
         Text := ShrinkAtWideGlyphs(Token, First, nCharsToPaint);
       end;
 
+      if EditorWallpaper.Active then
+      begin
+        if OpaqueTokenBackground then
+          Canvas.FillRect(rcToken);
+        // VCL Canvas can reinitialize the GDI background mode while changing
+        // font/brush state: reset it right before *every* text draw.
+        SetBkMode(Canvas.Handle, TRANSPARENT);
+      end;
       fTextDrawer.ExtTextOut(nX, rcToken.Top, ETOOptions, rcToken,
         PWideChar(Text), nCharsToPaint, (eoShowLigatures in fOptions) and not bCurrentLine);
 
@@ -2956,6 +3018,8 @@ var
           rcTab.Left := nX;
           rcTab.Right := nX + fTextDrawer.GetCharWidth;
 
+          if EditorWallpaper.Active then
+            SetBkMode(Canvas.Handle, TRANSPARENT);
           fTextDrawer.ExtTextOut(nX, rcTab.Top, ETOOptions, rcTab,
             PWideChar(Text), 1);
 
@@ -3087,7 +3151,8 @@ var
           rcToken.Right := nX1;
           if (TokenAccu.Len > 0) and (TokenAccu.Style <> []) then
             AdjustEndRect;
-          Canvas.FillRect(rcToken);
+          if OpaqueTokenBackground then
+            Canvas.FillRect(rcToken);
           rcToken.Left := nX1;
         end;
         if (rcToken.Left < nX2) then
@@ -3096,7 +3161,8 @@ var
           rcToken.Right := nX2;
           if (TokenAccu.Len > 0) and (TokenAccu.Style <> []) then
             AdjustEndRect;
-          Canvas.FillRect(rcToken);
+          if OpaqueTokenBackground then
+            Canvas.FillRect(rcToken);
           rcToken.Left := nX2;
         end;
         if (rcToken.Left < rcLine.Right) then
@@ -3105,7 +3171,8 @@ var
           rcToken.Right := rcLine.Right;
           if (TokenAccu.Len > 0) and (TokenAccu.Style <> []) then
             AdjustEndRect;
-          Canvas.FillRect(rcToken);
+          if OpaqueTokenBackground then
+            Canvas.FillRect(rcToken);
         end;
       end
       else
@@ -3114,7 +3181,8 @@ var
         rcToken.Right := rcLine.Right;
         if (TokenAccu.Len > 0) and (TokenAccu.Style <> []) then
           AdjustEndRect;
-        Canvas.FillRect(rcToken);
+        if OpaqueTokenBackground then
+          Canvas.FillRect(rcToken);
       end;
     end;
   end;
@@ -3565,6 +3633,7 @@ begin
   vLastLine := RowToLine(aLastRow);
 
   bCurrentLine := False;
+  bDrawingSelected := False;
   // If the right edge is visible and in the invalid area, prepare to paint it.
   // Do this first to realize the pen when getting the dc variable.
   SynTabGlyphString := SynTabGlyph;
@@ -3593,7 +3662,8 @@ begin
     if Highlighter <> nil then
       Highlighter.ResetRange;
     Canvas.Brush.Color := colEditorBG;
-    Canvas.FillRect(rcToken);
+    if not EditorWallpaper.Active then
+      Canvas.FillRect(rcToken);
     // Adjust the invalid area to not include this area.
     AClip.Left := rcToken.Right;
   end;
@@ -3606,6 +3676,8 @@ begin
     fTextDrawer.Style := Font.Style;
     fTextDrawer.BeginDrawing(dc);
     try
+      if EditorWallpaper.Active then
+        SetBkMode(dc, TRANSPARENT);
       PaintLines;
     finally
       fTextDrawer.EndDrawing;
@@ -3619,7 +3691,8 @@ begin
     if Highlighter <> nil then
       Highlighter.ResetRange;
     Canvas.Brush.Color := colEditorBG;
-    Canvas.FillRect(rcToken);
+    if not EditorWallpaper.Active then
+      Canvas.FillRect(rcToken);
     // Draw the right edge if necessary.
     if bDoRightEdge then
     begin

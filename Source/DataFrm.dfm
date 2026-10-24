@@ -16345,7 +16345,6 @@ object dmMain: TdmMain
           'style="fill:#7daca8"/></g></svg>'
       end>
     DisabledGrayScale = False
-    Scaled = False
     Left = 360
     Top = 80
   end
@@ -16420,7 +16419,6 @@ object dmMain: TdmMain
           'idth="12.43" height="1.4" style="fill:#7daca8"/></g></svg>'
       end>
     DisabledGrayScale = False
-    Scaled = False
     Left = 360
     Top = 176
   end
@@ -16754,7 +16752,6 @@ object dmMain: TdmMain
           'l:#f2e464"/></g></svg>'
       end>
     DisabledGrayScale = False
-    Scaled = True
     Left = 360
     Top = 128
   end
@@ -16847,7 +16844,6 @@ object dmMain: TdmMain
           'svg>'
       end>
     DisabledGrayScale = False
-    Scaled = True
     Left = 360
     Top = 232
   end
@@ -16948,7 +16944,6 @@ object dmMain: TdmMain
       end>
     DisabledGrayScale = False
     DisabledOpacity = 150
-    Scaled = False
     Left = 360
     Top = 288
   end

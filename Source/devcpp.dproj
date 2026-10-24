@@ -73,7 +73,7 @@
         <VerInfo_MinorVer>12</VerInfo_MinorVer>
         <VerInfo_Locale>1033</VerInfo_Locale>
         <VerInfo_Keys>CompanyName=Bloodshed Software;FileDescription=Dev-C++ IDE;FileVersion=5.12.0.0;InternalName=devcpp.exe;LegalCopyright=Copyright Bloodshed Software;LegalTrademarks=;OriginalFilename=devcpp.exe;ProductName=Dev-C++;ProductVersion=5.0;Comments=Under the GNU General Public License</VerInfo_Keys>
-        <Custom_Styles>Windows10|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10.vsf;&quot;Windows10 SlateGray|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10SlateGray.vsf&quot;;Calypso|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Calypso.vsf;&quot;Flat UI Light|VCLSTYLE|$(BDSCOMMONDIR)\Styles\FlatUILight.vsf&quot;;Glossy|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Glossy.vsf;&quot;Material Patterns Blue|VCLSTYLE|$(BDSCOMMONDIR)\Styles\MaterialPatternsBlue.vsf&quot;;&quot;Windows10 BlackPearl|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10BlackPearl.vsf&quot;;&quot;Windows10 Blue Whale|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10BlueWhale.vsf&quot;</Custom_Styles>
+        <Custom_Styles>Windows10|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10.vsf;&quot;Windows10 SlateGray|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10SlateGray.vsf&quot;;Carbon|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Carbon.vsf;Light|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Light.vsf;Glossy|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Glossy.vsf;&quot;Windows10 Purple|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10Purple.vsf&quot;;&quot;Windows10 Dark|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10Dark.vsf&quot;;&quot;Windows10 Blue|VCLSTYLE|$(BDSCOMMONDIR)\Styles\Windows10Blue.vsf&quot;</Custom_Styles>
     </PropertyGroup>
     <PropertyGroup Condition="'$(Base_Win32)'!=''">
         <DCC_Namespace>Data.Win;Datasnap.Win;Web.Win;Soap.Win;Xml.Win;Bde;$(DCC_Namespace)</DCC_Namespace>
@@ -114,7 +114,7 @@
     <PropertyGroup Condition="'$(Cfg_2_Win32)'!=''">
         <AppEnableRuntimeThemes>true</AppEnableRuntimeThemes>
         <AppDPIAwarenessMode>PerMonitorV2</AppDPIAwarenessMode>
-        <DCC_ExeOutput>C:\Dev-Cpp\</DCC_ExeOutput>
+        <DCC_ExeOutput>$(MSBuildProjectDirectory)\..\custom-bin\</DCC_ExeOutput>
         <VerInfo_MinorVer>2</VerInfo_MinorVer>
         <VerInfo_Keys>CompanyName=Embarcadero;FileDescription=$(MSBuildProjectName);FileVersion=6.2.0.0;InternalName=Devcpp;LegalCopyright=;LegalTrademarks=;OriginalFilename=Embarcadero Devcpp;ProductName=$(MSBuildProjectName);ProductVersion=6.2.0.0;Comments=;ProgramID=com.embarcadero.$(MSBuildProjectName)</VerInfo_Keys>
         <Icon_MainIcon>..\devcpp.ico</Icon_MainIcon>
@@ -1103,4 +1103,9 @@
     <Import Project="$(BDS)\Bin\CodeGear.Delphi.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Delphi.Targets')"/>
     <Import Project="$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj" Condition="Exists('$(APPDATA)\Embarcadero\$(BDSAPPDATABASEDIR)\$(PRODUCTVERSION)\UserTools.proj')"/>
     <Import Project="$(MSBuildProjectName).deployproj" Condition="Exists('$(MSBuildProjectName).deployproj')"/>
+    <!-- Keep language/theme assets next to Delphi Win32 Debug builds. -->
+    <Target Name="CopyNativeWallpaperResources" AfterTargets="Build"
+            Condition="'$(Config)'=='Debug' and '$(Platform)'=='Win32'">
+        <Exec Command="powershell.exe -NoProfile -File &quot;$(MSBuildProjectDirectory)\..\build-resources.ps1&quot;" />
+    </Target>
 </Project>

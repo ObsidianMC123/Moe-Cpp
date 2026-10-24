@@ -177,7 +177,6 @@ object NewProjectForm: TNewProjectForm
           '-.23.12-.45.17-.66s.1-.43.16-.66L26,21.45h.94Z" style="fill:#7da' +
           'ca8"/></g></svg>'
       end>
-    Scaled = True
     Left = 176
     Top = 192
   end
